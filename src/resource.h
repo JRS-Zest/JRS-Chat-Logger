@@ -1,0 +1,17 @@
+#pragma once
+
+#define IDI_APPICON       1
+#define IDR_ROTEN_START   101
+#define IDR_ROTEN_CHECK   102
+#define IDR_ROTEN_CHECK2  103
+#define IDR_SETTINGS_PNG  104
+#define IDR_HELP_PNG      105
+#define IDR_HELP_TXT      106
+
+// G員タブ
+#define IDC_GUILD_LIST    2140
+#define IDC_GUILD_COMPARE_BTN 2141
+#define IDC_GUILD_INTERVAL_LABEL 2142
+#define IDC_GUILD_INTERVAL_COMBO 2143
+#define IDC_GUILD_MANUAL_SAVE    2144
+#define IDC_GUILD_HELP_BTN       2145

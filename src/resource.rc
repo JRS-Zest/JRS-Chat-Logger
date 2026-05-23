@@ -1,0 +1,10 @@
+#include "resource.h"
+
+IDI_APPICON ICON "..\\resources\\2.ico"
+
+IDR_ROTEN_START  RCDATA "..\\resources\\roten_start.bmp"
+IDR_ROTEN_CHECK  RCDATA "..\\resources\\roten_check.bmp"
+IDR_ROTEN_CHECK2 RCDATA "..\\resources\\roten_check2.bmp"
+IDR_SETTINGS_PNG RCDATA "..\\resources\\settings.png"
+IDR_HELP_PNG     RCDATA "..\\resources\\help.png"
+IDR_HELP_TXT     RCDATA "..\\guild_tab_help.txt"
