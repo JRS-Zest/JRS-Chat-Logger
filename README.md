@@ -22,11 +22,9 @@ This folder is a minimized source package extracted for GitHub upload.
 ## Runtime requirements
 
 - Npcap (required for packet capture via `wpcap.dll`)
-- Red Stone `item.dat` file (recommended for item/option name resolution)
 - `sounds/` folder placed next to the executable (included in this repository)
 
 If Npcap is not installed, packet capture will not start.
-If `item.dat` cannot be loaded, the app still runs but item names may be shown as IDs.
 
 ## Build
 
