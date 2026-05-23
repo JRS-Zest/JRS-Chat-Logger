@@ -7,8 +7,10 @@ This folder is a minimized source package extracted for GitHub upload.
 - `CMakeLists.txt`
 - `src/`
 - `resources/`
+- `sounds/` (required notification sounds)
 - `scripts/`
 - `guild_tab_help.txt`
+- `SOUND_FILES.md`
 
 ## Build requirements
 
@@ -29,5 +31,6 @@ Executable output:
 
 ## Notes
 
-- Runtime-generated data (`sounds/`, `DC/`, `logger_config.ini`) is intentionally excluded by `.gitignore`.
+- Runtime-generated data (`DC/`, `logger_config.ini`) is intentionally excluded by `.gitignore`.
+- Sound file names and mapping are documented in `SOUND_FILES.md`.
 - This package is intended for source distribution and reproducible builds.
