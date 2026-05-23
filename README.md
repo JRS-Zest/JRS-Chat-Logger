@@ -40,4 +40,19 @@ Executable output:
 
 - Runtime-generated data (`DC/`, `logger_config.ini`) is intentionally excluded by `.gitignore`.
 - Sound file names and mapping are documented in `SOUND_FILES.md`.
+- This repository is the main app. When you use PriceViewer together with it, place the PriceViewer folder next to this app folder and keep the executable inside it.
+
+Example:
+
+```text
+JRSChatCPP/
+	JRSChatCPP.exe
+	sounds/
+	露店価格Viewer/
+		露店価格Viewer.exe
+		categories.json
+```
+
+- `sounds/` contains the notification WAV files used by this app.
+- `露店価格Viewer/` is the folder expected for the companion price viewer.
 - This package is intended for source distribution and reproducible builds.
