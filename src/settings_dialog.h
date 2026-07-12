@@ -19,6 +19,7 @@
 class SettingsDialog {
 public:
     using SystemLogFunc = std::function<void(const std::wstring&)>;
+    static constexpr UINT WM_SETTINGS_IFACE_SAVED = WM_APP + 41;
 
     SettingsDialog(AppSettings& settings,
                    ProcessMonitorService& processMonitor,

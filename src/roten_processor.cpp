@@ -75,24 +75,34 @@ bool RotenProcessor::IsDuplicate(const uint8_t* data, int len) {
     auto now = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(stateMutex_);
 
-    auto it = lastPackets_.find(hex);
-    if (it != lastPackets_.end()) {
-        auto elapsed = std::chrono::duration<double>(now - it->second).count();
-        if (elapsed < DUPLICATE_WINDOW_SEC) return true;
+    for (const auto& pkt : lastPackets_) {
+        if (pkt.hex == hex) {
+            auto elapsed = std::chrono::duration<double>(now - pkt.seenAt).count();
+            if (elapsed < DUPLICATE_WINDOW_SEC) return true;
+            break;
+        }
     }
-    lastPackets_[hex] = now;
+
+    lastPackets_.push_back(PacketStamp{std::move(hex), now});
+    // 一時的な重複検出バッファ。長時間運用時のメモリ増大を抑える。
+    constexpr size_t MAX_PACKET_STAMPS = 2048;
+    while (lastPackets_.size() > MAX_PACKET_STAMPS) {
+        lastPackets_.pop_front();
+    }
     return false;
 }
 
 void RotenProcessor::CleanupOldEntries() {
     auto now = std::chrono::steady_clock::now();
     std::lock_guard<std::mutex> lock(stateMutex_);
-    for (auto it = lastPackets_.begin(); it != lastPackets_.end(); ) {
-        auto elapsed = std::chrono::duration<double>(now - it->second).count();
-        if (elapsed > CLEANUP_THRESHOLD_SEC)
-            it = lastPackets_.erase(it);
-        else
-            ++it;
+
+    while (!lastPackets_.empty()) {
+        auto elapsed = std::chrono::duration<double>(now - lastPackets_.front().seenAt).count();
+        if (elapsed > CLEANUP_THRESHOLD_SEC) {
+            lastPackets_.pop_front();
+        } else {
+            break;
+        }
     }
 }
 

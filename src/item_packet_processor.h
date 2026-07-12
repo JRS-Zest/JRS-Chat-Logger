@@ -7,6 +7,7 @@
 #include <functional>
 #include <chrono>
 #include <unordered_map>
+#include <mutex>
 
 // C# ItemPacketProcessor.cs の移植
 
@@ -48,5 +49,6 @@ private:
     InvFullCallback invFullCallback_;
     SoundPlayFunc soundFunc_;
 
+    std::mutex cacheMutex_;
     std::unordered_map<std::string, std::chrono::steady_clock::time_point> lastPacketTime_;
 };

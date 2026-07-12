@@ -45,6 +45,8 @@ bool ItemPacketProcessor::IsCombinedItemPacket(const uint8_t* data, int len) con
 }
 
 bool ItemPacketProcessor::IsDuplicatePacket(const uint8_t* data, int len) {
+    std::lock_guard<std::mutex> lk(cacheMutex_);
+
     auto now = std::chrono::steady_clock::now();
     auto hash = ToHexString(data, len);
     auto it = lastPacketTime_.find(hash);
@@ -241,5 +243,6 @@ void ItemPacketProcessor::AnalyzeCombinedItemPacket(const uint8_t* data, int len
 }
 
 void ItemPacketProcessor::ClearCache() {
+    std::lock_guard<std::mutex> lk(cacheMutex_);
     lastPacketTime_.clear();
 }

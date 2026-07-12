@@ -201,7 +201,7 @@ void GuildMemberProcessor::AnalyzeOuterPacket(const uint8_t* data, int len) {
                     m.jobCode = body[bpos + 17];
                     m.rankCode = body[bpos + 18];
                     uint16_t lvRaw = *reinterpret_cast<const uint16_t*>(body + bpos + 19);
-                    m.level = static_cast<int>(lvRaw) - 0xC000;
+                    m.level = static_cast<int>(lvRaw);
 
                     m.jobName = JobToName(m.jobCode);
                     m.rankName = RankToName(m.rankCode);

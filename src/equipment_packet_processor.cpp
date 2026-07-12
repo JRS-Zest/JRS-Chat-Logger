@@ -41,18 +41,16 @@ void EquipmentPacketProcessor::ProcessPacket(const uint8_t* payload, int len, bo
     // 0x123D を直接走査 (結合パケット対応: 0x1128 外枠に依存しない)
     for (int i = 0; i <= len - 8; i++) {
         uint16_t innerLen = ReadU16(payload + i);
-        if (innerLen < 8 || innerLen > 4096) continue;
+        if (innerLen < 8 || innerLen > 8192) continue;
         uint16_t innerCmd = ReadU16(payload + i + 2);
         if (innerCmd != 0x123D) continue;
 
-        int appStart = i + 6;
-        int appAvail = len - appStart;
-        int appExpected = innerLen - 6;
-        int appLen = (appAvail < appExpected) ? appAvail : appExpected;
+        // 0x123D を見つけた位置(i)から44バイト進んだ場所が装備開始位置
+        int appStart = i + 44;
 
-        // 装備データの必要最低限: junk(2) + header(90) + 18*30 = 632
-        if (appLen >= 2 + 90 + EQUIP_COUNT * ITEM_RECORD_SIZE) {
-            ParseEquipment(payload + appStart, appLen);
+        // 念のため、そこから66バイト×18個の領域がパケット内に収まっているか確認
+        if (appStart + (18 * ITEM_RECORD_SIZE) <= len) {
+            ParseEquipment(payload + appStart, len - appStart);
             return;  // 装備データは1キャラ分でOK
         }
     }
@@ -61,7 +59,7 @@ void EquipmentPacketProcessor::ProcessPacket(const uint8_t* payload, int len, bo
 void EquipmentPacketProcessor::ParseEquipment(const uint8_t* appData, int appLen) {
     int pos = 2;  // skip 2-byte junk
 
-    // ヘッダフィールド読み飛ばし (C#/Python と同一オフセット)
+    // ヘッダフィールド読み飛ばし (最新パケット構造に合わせた調整: 計70バイト)
     // Level(4) + EXP(4) + SP(4) + NowHP(4) + BaseHP(4) = 20
     pos += 20;
     // NowCP(4) + BaseCP(4) = 8
@@ -74,12 +72,10 @@ void EquipmentPacketProcessor::ParseEquipment(const uint8_t* appData, int appLen
     pos += 10;
     // Magic (6 × 2) = 12
     pos += 12;
-    // StatusAbnormal (9 × 2) = 18
-    pos += 18;
-    // AllStatus* (3 × 2) = 6
-    pos += 6;
+    // 残りのヘッダ領域 (2バイト追加)
+    pos += 2;
 
-    // pos = 2 + 20 + 8 + 4 + 14 + 10 + 12 + 18 + 6 = 94
+    // pos = 2 + 20 + 8 + 4 + 14 + 10 + 12 + 2 = 72
     // ここから装備アイテム配列
 
     if (pos + EQUIP_COUNT * ITEM_RECORD_SIZE > appLen) return;

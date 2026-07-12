@@ -293,7 +293,7 @@ struct DropEntry {
     bool notifyBlink = false;      // 点滅表示中
     bool notifyHighlight = false;  // 点滅終了後の恒久ハイライト
 };
-static std::vector<DropEntry> g_drops;
+static std::deque<DropEntry> g_drops;
 static std::mutex g_drops_mutex;
 
 // ドロップ行点滅管理
@@ -302,7 +302,7 @@ struct DropBlinkRow {
     int remaining;
     bool isOn;
 };
-static std::vector<DropBlinkRow> g_dropBlinkRows;
+static std::deque<DropBlinkRow> g_dropBlinkRows;
 
 // 装備スロット一覧 (常に18要素、受信時に上書き)
 struct EquipEntry {
@@ -884,20 +884,17 @@ static void ShowStartupReferenceLinks() {
     if (g_startupLinksShown) return;
     g_startupLinksShown = true;
 
-    std::wstring ts = FormatTimestamp(std::chrono::system_clock::now());
-    std::wstring line1 = L"[" + ts + L"] [一般] https://jrs-zest.github.io/JRS_item/ アイテム\r\n";
-    std::wstring line2 = L"[" + ts + L"] [一般] https://x.gd/Slv10 モンスタ\r\n";
+    std::wstring line = L"https://jrs-zest.github.io/\r\n";
 
     // フィルタ状態に関係なく、チャット欄で必ず見えるよう全RichEditへ追加する
     for (int i = 0; i < IDC_CHAT_FILTER_COUNT; i++) {
         if (g_hChatEdits[i]) {
-            AppendChatText(g_hChatEdits[i], line1, RGB(90, 90, 90));
-            AppendChatText(g_hChatEdits[i], line2, RGB(90, 90, 90));
+            AppendChatText(g_hChatEdits[i], line, RGB(90, 90, 90));
         }
     }
 
     if (g_hLatestLabel) {
-        SetWindowTextW(g_hLatestLabel, L"https://x.gd/Slv10 モンスタ");
+        SetWindowTextW(g_hLatestLabel, L"https://jrs-zest.github.io/");
     }
 }
 
@@ -2951,21 +2948,22 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
 
             std::wstring ts;
             std::wstring text;
+            std::chrono::system_clock::time_point timestamp{};
             std::lock_guard<std::mutex> lk(g_drops_mutex);
             auto indices = GetFilteredDropIndices();
             if (row < 0 || row >= (int)indices.size()) return 0;
             int realIdx = indices[row];
 
             if (realIdx < 0 || realIdx >= (int)g_drops.size()) return 0;
-            const auto& de = g_drops[realIdx];
+            timestamp = g_drops[realIdx].timestamp;
+            if (col == 1) text = g_drops[realIdx].itemName;
+            else if (col == 2) text = g_drops[realIdx].coordText;
 
             if (di->item.mask & LVIF_TEXT) {
                 if (col == 0) {
-                    ts = FormatTimestamp(de.timestamp);
+                    ts = FormatTimestamp(timestamp);
                     wcsncpy_s(di->item.pszText, di->item.cchTextMax, ts.c_str(), _TRUNCATE);
                 } else {
-                    if (col == 1) text = de.itemName;
-                    else if (col == 2) text = de.coordText;
                     if (col == 1 || col == 2) {
                         wcsncpy_s(di->item.pszText, di->item.cchTextMax, text.c_str(), _TRUNCATE);
                     }
@@ -2993,9 +2991,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
                 int realIdx = indices[displayRow];
 
                 if (realIdx < 0 || realIdx >= (int)g_drops.size()) return CDRF_DODEFAULT;
-                const auto& de = g_drops[realIdx];
-                isNotificationTarget = de.isNotificationTarget;
-                isHighlight = de.notifyHighlight;
+                isNotificationTarget = g_drops[realIdx].isNotificationTarget;
+                isHighlight = g_drops[realIdx].notifyHighlight;
 
                 if (isNotificationTarget) {
                     cd->clrText = RGB(0, 100, 180);
@@ -3727,6 +3724,16 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             for (int p : *ports) portSet.insert((uint16_t)p);
             g_captureService->SetPortFilter(portSet);
             delete ports;
+        }
+        return 0;
+    }
+
+    case SettingsDialog::WM_SETTINGS_IFACE_SAVED:
+    {
+        if (g_running.load()) {
+            StopCapture();
+            StartCapture();
+            PostSystemLog(hwnd, L"ネットワーク設定変更を反映するためキャプチャを再接続しました");
         }
         return 0;
     }

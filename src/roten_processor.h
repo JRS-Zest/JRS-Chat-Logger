@@ -3,7 +3,7 @@
 #include <string>
 #include <vector>
 #include <functional>
-#include <unordered_map>
+#include <deque>
 #include <chrono>
 #include <mutex>
 #include <windows.h>
@@ -86,7 +86,11 @@ private:
     std::wstring currentLogFilePath_;
 
     // 重複検出
-    std::unordered_map<std::string, std::chrono::steady_clock::time_point> lastPackets_;
+    struct PacketStamp {
+        std::string hex;
+        std::chrono::steady_clock::time_point seenAt;
+    };
+    std::deque<PacketStamp> lastPackets_;
 
     // 先行パケット検出
     std::chrono::steady_clock::time_point lastPrecedingTime_;

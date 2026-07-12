@@ -42,7 +42,7 @@ public:
     std::vector<ItemInfo> GetAllBlocksOrdered() const;
 
 private:
-    static constexpr int ITEM_BASE_INFO_SIZE = 426;
+    static constexpr int ITEM_BASE_INFO_SIZE = 618;
     static constexpr int OP_BASE_INFO_SIZE = 160;
 
     void ParseItems(const std::vector<uint8_t>& decItems);

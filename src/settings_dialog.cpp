@@ -360,14 +360,22 @@ void SettingsDialog::OnTabChanged(HWND /*hwnd*/, int tabIndex) {
     ShowWindow(displayPage_, tabIndex == 2 ? SW_SHOW : SW_HIDE);
 }
 
-void SettingsDialog::SaveNetworkSettings(HWND /*hwnd*/) {
+void SettingsDialog::SaveNetworkSettings(HWND hwnd) {
     auto combo = GetDlgItem(networkPage_, IDC_IFACE_COMBO);
     int sel = static_cast<int>(SendMessageW(combo, CB_GETCURSEL, 0, 0));
     if (sel >= 0 && sel < static_cast<int>(networkInterfaces_.size())) {
-        settings_.interfaceName = networkInterfaces_[sel].name;
+        std::wstring newIface = networkInterfaces_[sel].name;
+        bool changed = (settings_.interfaceName != newIface);
+        settings_.interfaceName = newIface;
         settings_.Save();
         if (addSystemLog_) {
-            addSystemLog_(L"ネットワークインターフェースを '" + networkInterfaces_[sel].name + L"' に設定しました。");
+            addSystemLog_(L"ネットワークインターフェースを '" + newIface + L"' に設定しました。");
+        }
+        if (changed) {
+            HWND parent = GetParent(hwnd);
+            if (parent) {
+                PostMessageW(parent, WM_SETTINGS_IFACE_SAVED, 0, 0);
+            }
         }
     }
 }

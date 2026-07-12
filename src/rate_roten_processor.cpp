@@ -152,7 +152,7 @@ bool RateRotenProcessor::ParseFromSubcmd(const uint8_t* data, int len, int subcm
         while (slotStartPos + SLOT_SIZE <= len) {
             const uint8_t* slotData = data + slotStartPos;
 
-            uint8_t slotNumber = slotData[36];
+            uint16_t slotNumber = slotData[SLOT_NUMBER_OFFSET_FROM_SLOT] | (slotData[SLOT_NUMBER_OFFSET_FROM_SLOT + 1] << 8);
             if (slotNumber > 8) break;
 
             uint16_t itemSerial = slotData[4] | (slotData[5] << 8);
@@ -168,9 +168,11 @@ bool RateRotenProcessor::ParseFromSubcmd(const uint8_t* data, int len, int subcm
 
             auto options = ParseOptions(slotData + 10, 12);
 
-            uint32_t price = slotData[32] | (slotData[33] << 8) | (slotData[34] << 16) | (slotData[35] << 24);
-            uint8_t priceTypeVal = slotData[38];
-            std::wstring priceType = (priceTypeVal == 0) ? L"ゴールド" : L"インゴット";
+            uint32_t price = slotData[PRICE_OFFSET_FROM_SLOT] |
+                             (slotData[PRICE_OFFSET_FROM_SLOT + 1] << 8) |
+                             (slotData[PRICE_OFFSET_FROM_SLOT + 2] << 16) |
+                             (slotData[PRICE_OFFSET_FROM_SLOT + 3] << 24);
+            std::wstring priceType = L"ゴールド";
 
             RateRotenItem item;
             item.slot = slotNumber;

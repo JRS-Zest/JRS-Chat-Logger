@@ -111,13 +111,22 @@ bool ItemDatLoader::LoadItemDat(const std::wstring& path) {
 
     int libItemsBytes = libItemLength * ITEM_BASE_INFO_SIZE;
 
-    // Items block (offset 12)
+    // Items block (offset 12) - decode per-record (block) rather than whole at once
     if (libItemLength > 0) {
         int available = static_cast<int>(data.size()) - 12;
         int readSize = (std::min)(libItemsBytes, available);
         if (readSize > 0) {
-            auto decItems = PacketCrypt::DecodeScenarioBuffer(data.data() + 12, readSize, key);
-            ParseItems(decItems);
+            std::vector<uint8_t> decItemsAll;
+            decItemsAll.reserve(readSize);
+            for (int i = 0; i < libItemLength; i++) {
+                int recOff = i * ITEM_BASE_INFO_SIZE;
+                if (recOff >= available) break;
+                int chunkSize = (std::min)(ITEM_BASE_INFO_SIZE, available - recOff);
+                if (chunkSize <= 0) break;
+                auto decRec = PacketCrypt::DecodeScenarioBuffer(data.data() + 12 + recOff, chunkSize, key);
+                decItemsAll.insert(decItemsAll.end(), decRec.begin(), decRec.end());
+            }
+            if (!decItemsAll.empty()) ParseItems(decItemsAll);
         }
     }
 
@@ -275,31 +284,35 @@ std::vector<ItemInfo> ItemDatLoader::GetAllBlocksOrdered() const {
     int readSize = (std::min)(libItemsBytes, (std::max)(0, available));
     if (readSize <= 0) return result;
 
-    auto decItems = PacketCrypt::DecodeScenarioBuffer(data.data() + 12, readSize, key);
-    int recCount = static_cast<int>(decItems.size()) / ITEM_BASE_INFO_SIZE;
-    result.reserve(recCount);
+    // Decode and parse per-record to preserve file-order and handle new block-based encryption
+    int maxRecords = (readSize + ITEM_BASE_INFO_SIZE - 1) / ITEM_BASE_INFO_SIZE;
+    for (int i = 0; i < maxRecords; i++) {
+        int recOff = i * ITEM_BASE_INFO_SIZE;
+        if (recOff + 4 > available) break;
 
-    for (int i = 0; i < recCount; i++) {
-        int off = i * ITEM_BASE_INFO_SIZE;
-        if (off + 4 > static_cast<int>(decItems.size())) break;
+        int chunkSize = (std::min)(ITEM_BASE_INFO_SIZE, available - recOff);
+        if (chunkSize <= 0) break;
 
-        int idVal = *reinterpret_cast<const int32_t*>(decItems.data() + off);
+        auto decRec = PacketCrypt::DecodeScenarioBuffer(data.data() + 12 + recOff, chunkSize, key);
+        if (static_cast<int>(decRec.size()) < 4) break;
+
+        int idVal = *reinterpret_cast<const int32_t*>(decRec.data() + 0);
 
         std::wstring name = L"serial+" + std::to_wstring(i);
-        if (off + 4 + 0x40 <= static_cast<int>(decItems.size())) {
-            auto read = ReadNullTerminatedShiftJis(decItems.data() + off + 4, 0x40);
+        if (static_cast<int>(decRec.size()) >= 4 + 0x40) {
+            auto read = ReadNullTerminatedShiftJis(decRec.data() + 4, 0x40);
             read = StripColorTags(read);
             if (!read.empty()) name = read;
         }
 
         int typeVal = -1;
-        if (off + 78 <= static_cast<int>(decItems.size())) {
-            typeVal = *reinterpret_cast<const uint16_t*>(decItems.data() + off + 76);
+        if (static_cast<int>(decRec.size()) >= 78) {
+            typeVal = *reinterpret_cast<const uint16_t*>(decRec.data() + 76);
         }
 
         int basePrice = 0;
-        if (off + 100 <= static_cast<int>(decItems.size())) {
-            basePrice = *reinterpret_cast<const int32_t*>(decItems.data() + off + 96);
+        if (static_cast<int>(decRec.size()) >= 100) {
+            basePrice = *reinterpret_cast<const int32_t*>(decRec.data() + 96);
         }
 
         result.push_back(ItemInfo{idVal, name, typeVal, basePrice});

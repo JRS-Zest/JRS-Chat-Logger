@@ -42,7 +42,9 @@ private:
 
     static constexpr int CHAR_NAME_OFFSET_FROM_SUBCMD = 74;
     static constexpr int CHAR_NAME_FIELD_SIZE = 20;
-    static constexpr int SLOT_SIZE = 40;
+    static constexpr int SLOT_SIZE = 76;
+    static constexpr int PRICE_OFFSET_FROM_SLOT = 68;
+    static constexpr int SLOT_NUMBER_OFFSET_FROM_SLOT = 72;
 
     ItemDatLoader& itemDatLoader_;
     ResultCallback callback_;

@@ -41,7 +41,7 @@ public:
 
 private:
     static constexpr int EQUIP_COUNT = 18;
-    static constexpr int ITEM_RECORD_SIZE = 30;  // 実サーバ: 4+2+1+1+2+12+8=30
+    static constexpr int ITEM_RECORD_SIZE = 66;  // 実データ22バイト + パディング44バイト
 
     static const wchar_t* SlotName(int index);
     static std::wstring FormatOpVal(uint8_t v1, uint8_t v2);
