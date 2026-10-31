@@ -85,6 +85,7 @@ bool ItemDatLoader::LoadItemDat(const std::wstring& path) {
 
     items_.clear();
     options_.clear();
+    orderedItems_.clear();
     isLoaded_ = false;
     loadedPath_.clear();
 
@@ -174,7 +175,9 @@ void ItemDatLoader::ParseItems(const std::vector<uint8_t>& decItems) {
             basePrice = *reinterpret_cast<const int32_t*>(decItems.data() + off + 96);
         }
 
-        items_[idVal] = ItemInfo{idVal, name, typeVal, basePrice};
+        ItemInfo info{idVal, name, typeVal, basePrice};
+        items_[idVal] = info;
+        orderedItems_.push_back(info);
     }
 }
 
@@ -202,6 +205,12 @@ void ItemDatLoader::ParseOptions(const std::vector<uint8_t>& data, int opsOffset
 
         int idx = *reinterpret_cast<const uint16_t*>(opsBytes.data() + off);
 
+        // Category: offset 4, 2 bytes
+        int category = 0;
+        if (off + 6 <= static_cast<int>(opsBytes.size())) {
+            category = *reinterpret_cast<const uint16_t*>(opsBytes.data() + off + 4);
+        }
+
         // Name1: offset 16, len 20
         std::wstring name1;
         if (off + 16 + 20 <= static_cast<int>(opsBytes.size())) {
@@ -219,7 +228,7 @@ void ItemDatLoader::ParseOptions(const std::vector<uint8_t>& data, int opsOffset
         std::wstring finalName = !name1.empty() ? name1 : !name2.empty() ? name2 : std::to_wstring(idx);
 
         if (options_.find(idx) == options_.end()) {
-            options_[idx] = OptionInfo{idx, finalName};
+            options_[idx] = OptionInfo{idx, finalName, category};
         }
     }
 }
@@ -230,6 +239,7 @@ bool ItemDatLoader::Reload(const std::wstring& path) {
     loadedPath_.clear();
     items_.clear();
     options_.clear();
+    orderedItems_.clear();
     return !p.empty() ? LoadItemDat(p) : false;
 }
 
@@ -254,69 +264,5 @@ std::wstring ItemDatLoader::GetOptionName(int optionId) const {
 }
 
 std::vector<ItemInfo> ItemDatLoader::GetAllBlocksOrdered() const {
-    // C# 版と同様に item.dat を再読み込みし、全ブロックをファイル内出現順で返す
-    // items_ (unordered_map) は重複IDを上書きするため使わない
-    std::vector<ItemInfo> result;
-
-    auto p = loadedPath_.empty() ? GetItemDatPathFromRegistry() : loadedPath_;
-    if (p.empty()) return result;
-
-    HANDLE hFile = CreateFileW(p.c_str(), GENERIC_READ, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
-    if (hFile == INVALID_HANDLE_VALUE) return result;
-
-    DWORD fileSize = GetFileSize(hFile, NULL);
-    if (fileSize < 12) { CloseHandle(hFile); return result; }
-
-    std::vector<uint8_t> data(fileSize);
-    DWORD bytesRead = 0;
-    ReadFile(hFile, data.data(), fileSize, &bytesRead, NULL);
-    CloseHandle(hFile);
-    if (bytesRead < 12) return result;
-
-    int rawKey = *reinterpret_cast<int32_t*>(data.data());
-    int key = PacketCrypt::GenerateScenarioDecodeKey(rawKey);
-
-    auto decHeader = PacketCrypt::DecodeScenarioBuffer(data.data() + 4, 8, key);
-    int libItemLength = *reinterpret_cast<int32_t*>(decHeader.data());
-
-    int libItemsBytes = libItemLength * ITEM_BASE_INFO_SIZE;
-    int available = static_cast<int>(data.size()) - 12;
-    int readSize = (std::min)(libItemsBytes, (std::max)(0, available));
-    if (readSize <= 0) return result;
-
-    // Decode and parse per-record to preserve file-order and handle new block-based encryption
-    int maxRecords = (readSize + ITEM_BASE_INFO_SIZE - 1) / ITEM_BASE_INFO_SIZE;
-    for (int i = 0; i < maxRecords; i++) {
-        int recOff = i * ITEM_BASE_INFO_SIZE;
-        if (recOff + 4 > available) break;
-
-        int chunkSize = (std::min)(ITEM_BASE_INFO_SIZE, available - recOff);
-        if (chunkSize <= 0) break;
-
-        auto decRec = PacketCrypt::DecodeScenarioBuffer(data.data() + 12 + recOff, chunkSize, key);
-        if (static_cast<int>(decRec.size()) < 4) break;
-
-        int idVal = *reinterpret_cast<const int32_t*>(decRec.data() + 0);
-
-        std::wstring name = L"serial+" + std::to_wstring(i);
-        if (static_cast<int>(decRec.size()) >= 4 + 0x40) {
-            auto read = ReadNullTerminatedShiftJis(decRec.data() + 4, 0x40);
-            read = StripColorTags(read);
-            if (!read.empty()) name = read;
-        }
-
-        int typeVal = -1;
-        if (static_cast<int>(decRec.size()) >= 78) {
-            typeVal = *reinterpret_cast<const uint16_t*>(decRec.data() + 76);
-        }
-
-        int basePrice = 0;
-        if (static_cast<int>(decRec.size()) >= 100) {
-            basePrice = *reinterpret_cast<const int32_t*>(decRec.data() + 96);
-        }
-
-        result.push_back(ItemInfo{idVal, name, typeVal, basePrice});
-    }
-
-    return result;
+    return orderedItems_;
 }

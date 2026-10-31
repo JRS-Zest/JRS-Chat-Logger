@@ -8,6 +8,27 @@
 #include <sstream>
 #include <filesystem>
 
+// =====================================================================
+// 【参考パケット】露店価格 (0x120d)
+// 取得日時: 2026-09-03（露店「2100」/ 露店主「ファンネル」・全品インゴット販売）
+// 備考: アップデートで価格種別(通貨)の読取位置が変わった。旧Pythonでは
+//       price=offset28, price_type=offset34 だったが、新形式では
+//       price=offset68, price_type=offset74 になった。
+// ---------------------------------------------------------------------
+// Hex（0x1128 ラッパー Count=1。InnerID=0x120d, InnerLen=0x02c0=704）:
+//   cc022811cdcdcdcd01000000c0020d120000cccc0000000080cc3231303000cc...
+//   (店名 "2100" @26-29 → 露店主 "ファンネル" @88 → スロット @108 から開始)
+//
+// スロット構造（SLOT_SIZE=76バイト。slotData 基準のオフセット）:
+//   [0-3] uniqueId(4)  [4-5] itemSerial(2)  [6] itemCount(1)  [7] endurance(1)
+//   [10-21] オプション(12B: 4B単位, 0xFFFF終端)
+//   [68-71] price(4B)  [72-73] slotNumber(2B)  [74] price_type(1B: 0=ゴールド/他=インゴット)
+//   [75] padding(CC)
+//
+// 例: slot0 @108 … "cc cc | fa 00 00 00(価格250) | 00 00(スロット0) | 01(インゴット) | cc"
+//     slot1 @184 … "cc cc | 5a 00 00 00(価格90)  | 01 00(スロット1) | 01(インゴット) | cc"
+// =====================================================================
+
 namespace fs = std::filesystem;
 
 // Shift-JIS → wstring
@@ -172,7 +193,9 @@ bool RateRotenProcessor::ParseFromSubcmd(const uint8_t* data, int len, int subcm
                              (slotData[PRICE_OFFSET_FROM_SLOT + 1] << 8) |
                              (slotData[PRICE_OFFSET_FROM_SLOT + 2] << 16) |
                              (slotData[PRICE_OFFSET_FROM_SLOT + 3] << 24);
-            std::wstring priceType = L"ゴールド";
+            // 価格種別: 0=ゴールド, それ以外=インゴット (Python参考実装と同じ判定)
+            uint8_t priceTypeVal = slotData[PRICE_TYPE_OFFSET_FROM_SLOT];
+            std::wstring priceType = (priceTypeVal == 0) ? L"ゴールド" : L"インゴット";
 
             RateRotenItem item;
             item.slot = slotNumber;

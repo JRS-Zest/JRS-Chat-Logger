@@ -7,6 +7,36 @@
 #include <thread>
 
 // C# BellProcessor.cs の完全移植
+//
+// =====================================================================
+// 【参考パケット】導きの鐘（ベル）
+// 取得日時: 2026-09-03（マップ移動時・残り約13分 = 861秒）
+// 備考: アップデートでマーカー周辺のフォーマットが変更された。
+//       旧形式 "99 12 00 00 CC CC"（後続 CC CC は未初期化パディング）→
+//       新形式では CC CC が残り時間などの実データに置換された。
+// ---------------------------------------------------------------------
+// Hex（0x1128 ラッパー Count=4。ベルの実体は4番目のインナー InnerID=0x1299）:
+//   d4002811cdcdcdcd040000000c008a110000852359031d030c008a110000851b5903
+//   1d0308000c1200000080a800991200005d030000c8000000c800000001000100
+//   436f73746100cccccccccccccccccccccccc676700cc...（末尾は CC パディング）
+//
+// バイト構造:
+//   [2B 全体長 d4 00=212][2B 0x1128][4B cd cd cd cd][4B Count=4]
+//   内側は [2B InnerLen][2B InnerID] の繰り返し:
+//     inner1: 0c 00=12 | 8a 11 (0x118a) | 00 00 85 23 59 03 1d 03
+//     inner2: 0c 00=12 | 8a 11 (0x118a) | 00 00 85 1b 59 03 1d 03
+//     inner3: 08 00=8  | 0c 12 (0x120c) | 00 00 00 80
+//     inner4: a8 00=168| 99 12 (0x1299=ベル)
+//       99 12 | 00 00 | 5d 03=861秒(残り) | 00 00
+//       | c8 00 00 00(200) | c8 00 00 00(200) | 01 00 | 01 00
+//       | "Costa\0"(名前 @base+20) | ...padding... | "gg\0"(メッセージ @base+38)
+//
+// 判定（base = "99 12" の位置）:
+//   - マーカー  : 99 12 00 00
+//   - 残り時間  : base+4 (2B little-endian)
+//   - 名前      : base+20 から NULL 終端
+//   - メッセージ: base+38 から NULL 終端
+// =====================================================================
 
 // Restore SJIS-only decoder
 static std::wstring SjisToWide(const uint8_t* data, int len) {
@@ -85,13 +115,13 @@ void BellProcessor::ProcessPacket(const uint8_t* payload, int len, bool isIncomi
     try {
         if (len < 68) return;
 
-        // マーカー検索: ペイロード内で "99 12 00 00 CC CC" を探し、
+        // マーカー検索: インナーID 0x1299 (99 12 00 00) を探し、
         // 見つかった位置を基準(=0)として処理する
+        // (旧形式は "99 12 00 00 CC CC"。アップデートで後続 CC CC が残り時間等の実データに置換された)
         int base = -1;
-        for (int i = 0; i + 5 < len; ++i) {
+        for (int i = 0; i + 3 < len; ++i) {
             if (payload[i] == 0x99 && payload[i+1] == 0x12 &&
-                payload[i+2] == 0x00 && payload[i+3] == 0x00 &&
-                payload[i+4] == 0xCC && payload[i+5] == 0xCC) {
+                payload[i+2] == 0x00 && payload[i+3] == 0x00) {
                 base = i;
                 break;
             }
@@ -108,9 +138,6 @@ void BellProcessor::ProcessPacket(const uint8_t* payload, int len, bool isIncomi
         // (ユーザ要求により安全チェックを無効化) 範囲外でも処理を続ける
         // if (base + rlen > len) return;
 
-        // 終了パケットは無視（マーカー基準の新オフセット 6-7）
-        if (payload[base + 6] == 0x00 && payload[base + 7] == 0x00) return;
-
         // パケットレベルの重複抑止（5秒以内）
         auto now = std::chrono::steady_clock::now();
         {
@@ -122,9 +149,9 @@ void BellProcessor::ProcessPacket(const uint8_t* payload, int len, bool isIncomi
             lastBellPacketTime_ = now;
         }
 
-        // マーカー基準の残り時間取得（オフセット6-7）
-        if (base + 7 >= len) return;
-        uint16_t remaining = static_cast<uint16_t>(payload[base + 6]) | (static_cast<uint16_t>(payload[base + 7]) << 8);
+        // マーカー基準の残り時間取得（オフセット4-5。旧形式は6-7）
+        if (base + 5 >= len) return;
+        uint16_t remaining = static_cast<uint16_t>(payload[base + 4]) | (static_cast<uint16_t>(payload[base + 5]) << 8);
 
         if (remaining == 0) {
             // 終了パケットは無視（仕様どおり）
@@ -156,8 +183,8 @@ void BellProcessor::ProcessPacket(const uint8_t* payload, int len, bool isIncomi
 }
 
 void BellProcessor::HandleBellPacket(const uint8_t* payload, int len) {
-    // 発動者名: 新オフセット22からNULL終端（元36->22）
-    int nameStart = 22;
+    // 発動者名: オフセット20からNULL終端（元36->22->20）
+    int nameStart = 20;
     int nameEnd = nameStart;
     while (nameEnd < len && payload[nameEnd] != 0) nameEnd++;
     std::wstring charName;
@@ -166,8 +193,8 @@ void BellProcessor::HandleBellPacket(const uint8_t* payload, int len) {
     }
     if (charName.empty()) charName = L"不明なキャラクター";
 
-    // メッセージ: 新オフセット40からNULL終端（元54->40）
-    int msgStart = 40;
+    // メッセージ: オフセット38からNULL終端（元54->40->38）
+    int msgStart = 38;
     int msgEnd = msgStart;
     while (msgEnd < len && payload[msgEnd] != 0) msgEnd++;
     std::wstring message;

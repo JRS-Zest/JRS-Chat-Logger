@@ -54,6 +54,7 @@
 #include "theme_manager.h"
 #include "settings_dialog.h"
 #include "rate_roten_processor.h"
+#include "flea_market_processor.h"
 #include "roten_processor.h"
 #include "gold_processor.h"
 #include "dc_manager.h"
@@ -343,6 +344,7 @@ static std::unique_ptr<ItemLoggerService>        g_itemLogger;
 static std::unique_ptr<ProcessMonitorService>    g_processMonitor;
 static std::unique_ptr<PacketCaptureService>     g_captureService;
 static std::unique_ptr<RateRotenProcessor>       g_rateRotenProcessor;
+static std::unique_ptr<FleaMarketProcessor>      g_fleaMarketProcessor;
 static std::unique_ptr<RotenProcessor>           g_rotenProcessor;
 static std::unique_ptr<GoldProcessor>            g_goldProcessor;
 static std::unique_ptr<DCManager>                g_dcManager;
@@ -1258,6 +1260,9 @@ static void InitializeServices() {
     // RateRotenProcessor
     g_rateRotenProcessor = std::make_unique<RateRotenProcessor>(*g_itemDatLoader, g_settings->maxLinesPerFile);
 
+    // FleaMarketProcessor (0x1128 / 0x12E4)
+    g_fleaMarketProcessor = std::make_unique<FleaMarketProcessor>(*g_itemDatLoader, g_settings->maxLinesPerFile);
+
     // RotenProcessor
     g_rotenProcessor = std::make_unique<RotenProcessor>(*g_itemDatLoader, g_settings->maxLinesPerFile);
 
@@ -1463,6 +1468,11 @@ static void OnPacketReceived(const TcpPacketInfo& pkt) {
     // RateRotenProcessor
     if (g_rateRotenProcessor) {
         g_rateRotenProcessor->ProcessPacket(data, len, pkt.isIncoming, pkt.srcPort, pkt.dstPort);
+    }
+
+    // FleaMarketProcessor (0x1128 / 0x12E4)
+    if (g_fleaMarketProcessor) {
+        g_fleaMarketProcessor->ProcessPacket(data, len, pkt.isIncoming, pkt.srcPort, pkt.dstPort, pkt.seq);
     }
 
     // RotenProcessor

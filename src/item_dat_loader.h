@@ -16,6 +16,7 @@ struct ItemInfo {
 struct OptionInfo {
     int id = 0;
     std::wstring name;
+    int category = 0;   // item.dat offset4（103 = 職業スキル）
 };
 
 class ItemDatLoader {
@@ -53,6 +54,7 @@ private:
 
     std::unordered_map<int, ItemInfo> items_;
     std::unordered_map<int, OptionInfo> options_;
+    std::vector<ItemInfo> orderedItems_;
     bool isLoaded_ = false;
     std::wstring loadedPath_;
 };

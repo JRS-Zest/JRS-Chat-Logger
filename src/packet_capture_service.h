@@ -18,6 +18,7 @@ struct TcpPacketInfo {
     uint32_t dstIp = 0;
     uint16_t srcPort = 0;
     uint16_t dstPort = 0;
+    uint32_t seq = 0;              // TCP シーケンス番号（再送除外用）
     bool isIncoming = false;       // サーバー → クライアント
 };
 

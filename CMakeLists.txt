@@ -22,6 +22,7 @@ add_executable(JRSChatCPP WIN32
     src/process_monitor_service.cpp
     src/settings_dialog.cpp
     src/rate_roten_processor.cpp
+    src/flea_market_processor.cpp
     src/roten_processor.cpp
     src/gold_processor.cpp
     src/dc_manager.cpp

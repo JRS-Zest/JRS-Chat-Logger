@@ -85,6 +85,10 @@ bool PacketCaptureService::ParseEthernetIpTcp(const uint8_t* data, int len, TcpP
 
     out.srcPort = (static_cast<uint16_t>(tcp[0]) << 8) | tcp[1];
     out.dstPort = (static_cast<uint16_t>(tcp[2]) << 8) | tcp[3];
+    out.seq = (static_cast<uint32_t>(tcp[4]) << 24) |
+              (static_cast<uint32_t>(tcp[5]) << 16) |
+              (static_cast<uint32_t>(tcp[6]) << 8) |
+              static_cast<uint32_t>(tcp[7]);
 
     uint8_t dataOffset = ((tcp[12] >> 4) & 0x0F) * 4;
     if (dataOffset < 20) return false;

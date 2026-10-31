@@ -3,6 +3,47 @@
 #include <cstring>
 #include <algorithm>
 
+// =====================================================================
+// 【参考パケット】一般チャット
+// 取得日時: 2026-09-03　Ver 0.0561 （キャラ「素麺」が "a" と発言）
+// 備考: アップデートで InnerID 0x1158 直後の予約領域が 4バイト→2バイト に
+//       縮小された。旧コードは 4バイト 0xCC を要求していたため全チャットが弾かれた。
+// ---------------------------------------------------------------------
+// Hex:
+//   1d002811cdcdcdcd0100000011005811cccc01c80cc0916696cb006100
+//
+// バイト構造（0x1128 ラッパー Count=1）:
+//   [2B 全体長 1d 00=29][2B 0x1128][4B cd cd cd cd][4B Count=1]
+//   [2B InnerLen 11 00=17][2B InnerID 58 11=0x1158]
+//   [2B 予約 cc cc][4B bitfield 01 c8 0c c0]
+//   [名前 91 66 96 cb = 素麺][00][61 = 'a'][00]
+//
+// 判定（idx = "58 11" の位置）:
+//   - ビットフィールド: idx+4 から 4バイト, bit22〜27(5bit)=ChatType(0=一般)
+//   - 名前: idx+8 から NULL 終端
+//   - メッセージ: 名前の NULL 直後から NULL 終端
+// =====================================================================
+
+// =====================================================================
+// 【参考パケット】サーバー全体チャット（鯖全 / ServerAll）
+// 取得日時: 2026-09-08（プレイヤー「無法無天」の全体チャット）
+// 備考: アップデート後の新形式。0x1128 ラッパー無しで先頭が全体長。
+// ---------------------------------------------------------------------
+// Hex:
+//   33005811cccccccc4cc296b3964096b393560020627579292920776f6c66206d6167696320776561706f6e20203530696e6700
+//
+// バイト構造:
+//   [2B 全体長 33 00=51][2B InnerID 58 11=0x1158]
+//   [4B CC CC CC CC][2B unknown 4c c2]
+//   [名前 96 b3 96 40 96 b3 93 56 = 無法無天][00]
+//   [20 スペース][メッセージ "buy)) wolf magic weapon  50ing"][00]
+//
+// 判定（idx = "58 11" の位置）:
+//   - ServerAll: idx 直後の 4バイトが全て 0xCC（58 11 CC CC CC CC）
+//   - 名前: idx+8 から NULL 終端
+//   - メッセージ: 名前 NULL 直後の 0x20 をスキップして NULL 終端
+// =====================================================================
+
 // Local SJIS-only decoder (restore original behavior)
 static std::wstring SjisToWide(const uint8_t* data, int len) {
     if (!data || len <= 0) return std::wstring();
@@ -32,17 +73,15 @@ void ChatPacketProcessor::ProcessChatPackets(const uint8_t* payload, int len) {
         idx = FindSequence(payload, len, SubCommandMarker, 2, idx);
         if (idx == -1) break;
 
-        // ServerAll: 0x58 0x11 + 6 bytes all 0xCC
+        // ServerAll: 0x58 0x11 + 4 bytes all 0xCC (旧形式は6bytes。予約領域が4→2に縮小)
         int saStart = idx + 2;
-        int saEnd = saStart + 6;
+        int saEnd = saStart + 4;
         bool isServerAll = false;
         if (saEnd <= len) {
             isServerAll = payload[saStart]     == 0xCC &&
                           payload[saStart + 1] == 0xCC &&
                           payload[saStart + 2] == 0xCC &&
-                          payload[saStart + 3] == 0xCC &&
-                          payload[saStart + 4] == 0xCC &&
-                          payload[saStart + 5] == 0xCC;
+                          payload[saStart + 3] == 0xCC;
         }
 
         if (isServerAll) {
@@ -64,20 +103,13 @@ void ChatPacketProcessor::ProcessChatPackets(const uint8_t* payload, int len) {
             continue;
         }
 
-        // Bitfield route: require 4 CC bytes after marker
-        int ccStart = idx + 2;
-        int ccEnd = ccStart + 4;
-        if (ccEnd <= len) {
-            bool isCcSeq = payload[ccStart]     == 0xCC &&
-                           payload[ccStart + 1] == 0xCC &&
-                           payload[ccStart + 2] == 0xCC &&
-                           payload[ccStart + 3] == 0xCC;
-            if (!isCcSeq) { idx++; continue; }
-        } else {
-            idx++; continue;
-        }
+        // Bitfield route: マーカー直後に [2B 予約領域=0xCCCC固定] が入り、その後に [4B bitfield] が続く
+        // 参考パケット: 58 11 cc cc 01 c8 0c c0 ... → 予約2バイトは常に 0xCCCC
+        // (誤認防止: 58 11 単独では他パケットに頻出するため、直後 0xCCCC を必須とする)
+        if (idx + 4 > len) { idx++; continue; }
+        if (payload[idx + 2] != 0xCC || payload[idx + 3] != 0xCC) { idx++; continue; }
 
-        int bfStart = idx + 6;
+        int bfStart = idx + 4;
         int bfEnd = bfStart + 4;
         if (bfEnd > len) { idx++; continue; }
 
@@ -191,8 +223,8 @@ void ChatPacketProcessor::ProcessWhisperTxPacket(const uint8_t* payload, int len
 }
 
 bool ChatPacketProcessor::ParseChatPacket(const uint8_t* data, int dataLen, int cmdIdx, ParseResult& out) {
-    // SubCommand(2) + 8 byte header + name\0 + message\0
-    int textStart = cmdIdx + 10;
+    // SubCommand(2) + reserved(2) + bitfield(4) + name\0 + message\0
+    int textStart = cmdIdx + 8;
     if (textStart >= dataLen) return false;
 
     // Player name (null terminated)
@@ -225,8 +257,8 @@ bool ChatPacketProcessor::ParseChatPacket(const uint8_t* data, int dataLen, int 
 }
 
 bool ChatPacketProcessor::ParseServerAllPacket(const uint8_t* data, int dataLen, int cmdIdx, ParseResult& out) {
-    // SubCommand(2) + cc pattern(6) + unknown(2) + name\0 + 0x20 + message\0
-    int textStart = cmdIdx + 10;
+    // SubCommand(2) + cc pattern(4) + unknown(2) + name\0 + 0x20 + message\0
+    int textStart = cmdIdx + 8;
     if (textStart >= dataLen) return false;
 
     // Player name (null terminated)
