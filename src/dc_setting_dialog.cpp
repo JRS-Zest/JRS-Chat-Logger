@@ -143,6 +143,7 @@ static const std::unordered_map<std::wstring, std::vector<int>>& GetSpecialLists
         lists[L"特殊"] = {617,1744,1869,1878,3669,3679,3680};
         lists[L"特殊2"] = {5015,5047,5044,5045,5046};
         lists[L"2500"] = {3684,3690,3691,3692,3693,3694};
+        lists[L"3100"] = {4627,4660,4663,4674,4689,4800,4801,4816,4817,4818,4819,4820,4864,4974,5008,5060,5064,5065,5066,5071,5072,5073,5074,5075,5076,5077,5078,5079,5080,5081,5082,5083,5084,5085,5086,5087,5088,5089,5090,5091,5092,5093,5094,5095,5096,5097,5098,5099,5100,5101,5102,5103,5104,5105,5106,5107,5108,5109,5110,5111,5112,5113,5114};
     }
     return lists;
 }
@@ -291,8 +292,15 @@ static void PopulateListView(DlgData& d) {
 #define IDC_DC_BTN_ALL_ON     3012
 #define IDC_DC_BTN_ALL_OFF    3013
 #define IDC_DC_LIST_SUGGEST   3050
-// 特殊ボタン 3020-3029
+// 特殊ボタン 3020-3031
 #define IDC_DC_BTN_SPECIAL_BASE 3020
+// 特殊ボタンの並び（3100 は 2500 の右）
+static const wchar_t* const kSpecialButtonNames[] = {
+    L"ノーマルU", L"DXU", L"BFU", L"800", L"900", L"1000", L"2100", L"2500",
+    L"3100", L"特殊", L"特殊2", L"10万"
+};
+static constexpr int kSpecialButtonCount = (int)(sizeof(kSpecialButtonNames) / sizeof(kSpecialButtonNames[0]));
+static constexpr int kIdxSpecial2 = 10;  // 特殊2
 // クイックボタン 3034-3037
 #define IDC_DC_BTN_QUICK_GOLD   3034
 #define IDC_DC_BTN_QUICK_COIN   3035
@@ -500,7 +508,7 @@ static void LoadItemsForProfile(DlgData& d, const std::wstring& profile) {
             }
             if (tip.size() > 300) { tip.resize(300); tip += L"..."; }
             d.sp2TipText = tip;
-            HWND hSp2 = GetDlgItem(d.hDlg, IDC_DC_BTN_SPECIAL_BASE + 8);
+            HWND hSp2 = GetDlgItem(d.hDlg, IDC_DC_BTN_SPECIAL_BASE + kIdxSpecial2);
             if (hSp2) UpdateTip(d.hToolTip, d.hDlg, hSp2, d.sp2TipText.c_str());
         }
     }
@@ -829,7 +837,7 @@ static LRESULT CALLBACK DcDlgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         d->hDlg = hwnd;
         { HICON hIco = LoadIconW(GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APPICON)); if (hIco) { SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIco); SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIco); } }
 
-        int cw = 620, y = 8;
+        int cw = 632, y = 8;  // 3100ボタン追加分(+12px)。ウィンドウのクライアント幅650内に収まる
         HFONT hFont = ThemeManager::CreateDefaultFont();
         const int panelX = 8;
         const int innerPad = 8;  // パネル内パディング
@@ -948,10 +956,9 @@ static LRESULT CALLBACK DcDlgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
 
             // 特殊ボタン行
             bx = panelX + innerPad;
-            const wchar_t* specialNames[] = {L"ノーマルU", L"DXU", L"BFU", L"800", L"900", L"1000", L"2100", L"2500", L"特殊", L"特殊2", L"10万"};
-            for (int i = 0; i < 11; i++) {
-                int w = measureBtn(specialNames[i]);
-                auto h = CreateWindowExW(0, L"BUTTON", specialNames[i], WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            for (int i = 0; i < kSpecialButtonCount; i++) {
+                int w = measureBtn(kSpecialButtonNames[i]);
+                auto h = CreateWindowExW(0, L"BUTTON", kSpecialButtonNames[i], WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
                     bx, panelY + py, w, 24, hwnd, (HMENU)(INT_PTR)(IDC_DC_BTN_SPECIAL_BASE + i), nullptr, nullptr);
                 SendMessage(h, WM_SETFONT, (WPARAM)hFont, TRUE);
                 bx += w + 3;
@@ -986,15 +993,16 @@ static LRESULT CALLBACK DcDlgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
                 {5, L"1000UMU: 要求1000,ドロップLv1100"},
                 {6, L"2100UMU: 要求2100,ドロップLv2026"},
                 {7, L"2500BFU: 要求2500,ドロップLv2550"},
-                {8, L"魔除け,アルケミストアロー,[RMU]バハムートの鉤爪,パイレーツハンター・レガシー,[JMU]百裂極爪"},
-                {10, L"Base_price10万ゴールド以上のみ（U/DXU/ノーマルU/DXU/BFU/特殊/特殊2/2500は除外）"},
+                {8, L"3100: 要求3100,ドロップLv3050"},
+                {9, L"魔除け,アルケミストアロー,[RMU]バハムートの鉤爪,パイレーツハンター・レガシー,[JMU]百裂極爪"},
+                {11, L"Base_price10万ゴールド以上のみ（U/DXU/ノーマルU/DXU/BFU/特殊/特殊2/2500/3100は除外）"},
             };
             for (auto& t : tips) {
                 HWND hBtn = GetDlgItem(hwnd, IDC_DC_BTN_SPECIAL_BASE + t.idx);
                 if (hBtn) SetTip(d->hToolTip, hwnd, hBtn, t.tip);
             }
             // 特殊2 は動的に更新するので空で登録
-            HWND hSp2 = GetDlgItem(hwnd, IDC_DC_BTN_SPECIAL_BASE + 8);
+            HWND hSp2 = GetDlgItem(hwnd, IDC_DC_BTN_SPECIAL_BASE + kIdxSpecial2);
             if (hSp2) SetTip(d->hToolTip, hwnd, hSp2, L"");
         }
 
@@ -1249,9 +1257,8 @@ static LRESULT CALLBACK DcDlgProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPa
         if (id == IDC_DC_BTN_QUICK_BADGE) { SelectItemById(*d, 5044); return 0; }
 
         // 特殊ボタン
-        if (id >= IDC_DC_BTN_SPECIAL_BASE && id < IDC_DC_BTN_SPECIAL_BASE + 11) {
-            const wchar_t* names[] = {L"ノーマルU", L"DXU", L"BFU", L"800", L"900", L"1000", L"2100", L"2500", L"特殊", L"特殊2", L"10万"};
-            ApplySpecialList(*d, names[id - IDC_DC_BTN_SPECIAL_BASE]);
+        if (id >= IDC_DC_BTN_SPECIAL_BASE && id < IDC_DC_BTN_SPECIAL_BASE + kSpecialButtonCount) {
+            ApplySpecialList(*d, kSpecialButtonNames[id - IDC_DC_BTN_SPECIAL_BASE]);
             return 0;
         }
 

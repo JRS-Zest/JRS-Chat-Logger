@@ -102,10 +102,8 @@ void EquipmentPacketProcessor::ParseEquipment(const uint8_t* appData, int appLen
     pos += 10;
     // Magic (6 × 2) = 12
     pos += 12;
-    // 残りのヘッダ領域 (2バイト追加)
-    pos += 2;
 
-    // pos = 2 + 20 + 8 + 4 + 14 + 10 + 12 + 2 = 72
+    // pos = 2 + 20 + 8 + 4 + 14 + 10 + 12 = 70
     // ここから装備アイテム配列
 
     if (pos + EQUIP_COUNT * ITEM_RECORD_SIZE > appLen) return;
